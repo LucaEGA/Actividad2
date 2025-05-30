@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Inventory PoC</title>
+    <link rel="stylesheet" href="/static/style.css">
+     <style>
+        body { font-family: sans-serif; margin: 20px; }
+        .container { max-width: 400px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
+        label, input { display: block; margin-bottom: 10px; }
+        input[type="text"], input[type="password"] { width: calc(100% - 22px); padding: 10px; }
+        button { padding: 10px 15px; background-color: #28a745; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #1e7e34; }
+        .message { margin-top: 15px; padding: 10px; border-radius: 3px; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .success { background-color: #d4edda; color: #155724; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Register</h2>
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+        <button onclick="registerUser()">Register</button>
+        <div id="messageArea" class="message" style="display:none;"></div>
+        <p>Already have an account? <a href="/login">Login here</a></p>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:5000/api/v1';
+
+        async function registerUser() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const messageArea = document.getElementById('messageArea');
+            messageArea.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    messageArea.textContent = 'Registration successful! You can now login.';
+                    messageArea.className = 'message success';
+                    messageArea.style.display = 'block';
+                } else {
+                    messageArea.textContent = data.message || 'Registration failed.';
+                    messageArea.className = 'message error';
+                    messageArea.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                messageArea.textContent = 'An error occurred during registration.';
+                messageArea.className = 'message error';
+                messageArea.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
