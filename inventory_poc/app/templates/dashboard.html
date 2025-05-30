@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Inventory PoC</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body { font-family: sans-serif; margin: 20px; font-size: 0.9em; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .section { padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; }
+        h1 { border-bottom: 2px solid #007bff; padding-bottom:10px; }
+        h2 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #333; }
+        h3 { margin-top: 0; color: #555;}
+        label, input, select, button { margin-bottom: 10px; }
+        input[type="text"], input[type="number"], input[type="date"], select { width: calc(100% - 22px); padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius:3px; }
+        button { padding: 8px 12px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius:3px; }
+        button:hover { background-color: #0056b3; }
+        .logout-btn { background-color: #dc3545; float: right; }
+        .logout-btn:hover { background-color: #c82333; }
+        table { width: 100%; border-collapse: collapse; margin-top:10px; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; font-size:0.9em; }
+        th { background-color: #e9ecef; }
+        .message { margin-top: 10px; padding: 8px; border-radius: 3px; font-size: 0.9em; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .success { background-color: #d4edda; color: #155724; }
+        textarea { width: calc(100% - 22px); padding: 8px; box-sizing: border-box; min-height: 40px; border: 1px solid #ccc; border-radius:3px;}
+    </style>
+</head>
+<body>
+    <h1>Inventory PoC Dashboard <button class="logout-btn" onclick="logout()">Logout</button></h1>
+    <div id="globalMessageArea" class="message" style="display:none;"></div>
+
+    <div class="grid-container">
+        <!-- Products Section -->
+        <div class="section">
+            <h2>Products</h2>
+            <form id="addProductForm">
+                <h3>Add New Product</h3>
+                <label for="product_code">Product Code:</label>
+                <input type="text" id="product_code" required>
+                <label for="product_name">Name:</label>
+                <input type="text" id="product_name" required>
+                <label for="cost">Cost:</label>
+                <input type="number" step="0.01" id="cost" required>
+                <label for="sale_price">Sale Price:</label>
+                <input type="number" step="0.01" id="sale_price">
+                <label for="sku">SKU:</label>
+                <input type="text" id="sku">
+                <label for="unit_of_measure">Unit:</label>
+                <input type="text" id="unit_of_measure">
+                <label for="category">Category:</label>
+                <input type="text" id="category">
+                <label for="location">Location:</label>
+                <input type="text" id="location">
+                <button type="button" onclick="addProduct()">Add Product</button>
+            </form>
+            <div id="addProductMessage" class="message" style="display:none;"></div>
+            <h3>Product List</h3>
+            <button onclick="fetchProducts()">Refresh Products</button>
+            <table id="productsTable"><thead><tr><th>ID</th><th>Code</th><th>Name</th><th>Cost</th><th>Price</th><th>Active</th></tr></thead><tbody></tbody></table>
+        </div>
+
+        <!-- Inventory Movement Section -->
+        <div class="section">
+            <h2>Inventory Movements</h2>
+            <form id="addMovementForm">
+                <h3>Record Movement</h3>
+                <label for="movement_product_id">Product:</label>
+                <select id="movement_product_id"></select>
+                <label for="movement_type">Type:</label>
+                <select id="movement_type">
+                    <option value="INBOUND">INBOUND</option>
+                    <option value="OUTBOUND">OUTBOUND</option>
+                    <option value="ADJUSTMENT_IN">ADJUSTMENT_IN</option>
+                    <option value="ADJUSTMENT_OUT">ADJUSTMENT_OUT</option>
+                </select>
+                <label for="movement_quantity">Quantity:</label>
+                <input type="number" id="movement_quantity" required min="1">
+                <label for="movement_order_id">Order ID (Optional):</label>
+                <input type="text" id="movement_order_id">
+                <label for="movement_notes">Notes (Optional):</label>
+                <textarea id="movement_notes"></textarea>
+                <button type="button" onclick="recordMovement()">Record Movement</button>
+            </form>
+            <div id="addMovementMessage" class="message" style="display:none;"></div>
+            <h3>Recent Movements</h3>
+            <button onclick="fetchMovements()">Refresh Movements</button>
+            <table id="movementsTable"><thead><tr><th>ID</th><th>Prod.</th><th>Type</th><th>Qty</th><th>Date</th><th>Order ID</th></tr></thead><tbody></tbody></table>
+        </div>
+
+        <!-- Current Stock Section -->
+        <div class="section">
+            <h2>Current Stock</h2>
+            <button onclick="fetchCurrentStock()">Refresh Stock</button>
+            <table id="currentStockTable"><thead><tr><th>Prod. ID</th><th>Code</th><th>Name</th><th>Quantity</th><th>Inv. Cost</th><th>Last Updated</th></tr></thead><tbody></tbody></table>
+        </div>
+
+        <!-- Prediction Section -->
+        <div class="section">
+            <h2>Stock Prediction</h2>
+            <form id="addHistoricalDataForm">
+                <h3>Add Historical Sales Data</h3>
+                <label for="historical_product_id">Product:</label>
+                <select id="historical_product_id"></select>
+                <label for="historical_date">Date:</label>
+                <input type="date" id="historical_date" required>
+                <label for="historical_units_sold">Units Sold:</label>
+                <input type="number" id="historical_units_sold" required min="0">
+                 <label for="historical_avg_price">Avg Sale Price (Optional):</label>
+                <input type="number" step="0.01" id="historical_avg_price">
+                <label for="historical_promo">Promotion Active?</label>
+                <input type="checkbox" id="historical_promo" style="width:auto;display:inline-block; vertical-align:middle; margin-bottom:10px;">
+                <label for="historical_event">Special Event (Optional):</label>
+                <input type="text" id="historical_event">
+                <button type="button" onclick="addHistoricalData()">Add Data</button>
+            </form>
+            <div id="addHistoricalDataMessage" class="message" style="display:none;"></div>
+
+            <h3>Get Prediction</h3>
+            <label for="predict_product_id">Product:</label>
+            <select id="predict_product_id"></select>
+            <label for="predict_periods">Periods to Predict (e.g., 3):</label>
+            <input type="number" id="predict_periods" value="3" min="1">
+            <label for="predict_window">SMA Window Size (e.g., 3):</label>
+            <input type="number" id="predict_window" value="3" min="1">
+            <button type="button" onclick="getPrediction()">Get Prediction</button>
+            <div id="predictionResultMessage" class="message" style="display:none;"></div>
+            <div id="predictionResultArea" style="margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:5000/api/v1';
+        let productsCache = []; // To populate dropdowns
+
+        function getToken() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                // Do not redirect if on login/register page already
+                if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+                    window.location.href = '/login';
+                }
+                return null;
+            }
+            return token;
+        }
+
+        function showMessage(areaId, text, isError = false, duration = 5000) {
+            const area = document.getElementById(areaId);
+            if (!area) { console.warn(`Message area ${areaId} not found`); return; }
+            area.textContent = text;
+            area.className = isError ? 'message error' : 'message success';
+            area.style.display = 'block';
+            if (duration > 0) {
+                setTimeout(() => area.style.display = 'none', duration);
+            }
+        }
+
+        async function makeApiCall(endpoint, method = 'GET', body = null) {
+            const token = getToken();
+            // For public routes like login/register, token might be null, which is fine.
+            // For protected routes, if token is null, getToken() would have redirected.
+            // However, if a token becomes invalid on the server, we need to handle 401.
+
+            const headers = {};
+            if (method !== 'GET' && method !== 'DELETE') { // Only set Content-Type if there's a body
+                 headers['Content-Type'] = 'application/json';
+            }
+            if (token) { // Add Authorization header if token exists
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const config = { method, headers };
+            if (body) config.body = JSON.stringify(body);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+                if (response.status === 401) { // Unauthorized
+                    showMessage('globalMessageArea', 'Session expired or invalid. Please login again.', true, 0);
+                    logout(); // Force logout
+                    return; // Stop further processing
+                }
+
+                const responseData = await response.json(); // Attempt to parse JSON
+
+                if (!response.ok) {
+                    throw new Error(responseData.message || `HTTP error! Status: ${response.status}`);
+                }
+                return responseData;
+            } catch (error) {
+                console.error(`API call to ${endpoint} failed:`, error);
+                showMessage('globalMessageArea', error.message || 'API request failed.', true);
+                throw error;
+            }
+        }
+
+        // --- Product Functions ---
+        async function addProduct() {
+            const payload = {
+                product_code: document.getElementById('product_code').value,
+                product_name: document.getElementById('product_name').value,
+                cost: parseFloat(document.getElementById('cost').value),
+                sale_price: parseFloat(document.getElementById('sale_price').value) || null,
+                sku: document.getElementById('sku').value || null,
+                unit_of_measure: document.getElementById('unit_of_measure').value || null,
+                category: document.getElementById('category').value || null,
+                location: document.getElementById('location').value || null,
+            };
+            if (!payload.product_code || !payload.product_name || isNaN(payload.cost)) {
+                showMessage('addProductMessage', 'Product Code, Name, and Cost are required.', true);
+                return;
+            }
+            try {
+                await makeApiCall('/products', 'POST', payload);
+                showMessage('addProductMessage', 'Product added successfully!');
+                document.getElementById('addProductForm').reset();
+                fetchProducts();
+            } catch (e) { /* showMessage called in makeApiCall */ }
+        }
+
+        async function fetchProducts() {
+            try {
+                const products = await makeApiCall('/products');
+                if (!products) return; // In case of auth error handled by makeApiCall
+                productsCache = products;
+                const tableBody = document.getElementById('productsTable').getElementsByTagName('tbody')[0];
+                tableBody.innerHTML = '';
+                products.forEach(p => {
+                    let row = tableBody.insertRow();
+                    row.insertCell().textContent = p.id;
+                    row.insertCell().textContent = p.product_code;
+                    row.insertCell().textContent = p.product_name;
+                    row.insertCell().textContent = p.cost.toFixed(2);
+                    row.insertCell().textContent = p.sale_price ? p.sale_price.toFixed(2) : '-';
+                    row.insertCell().textContent = p.active ? 'Yes' : 'No';
+                });
+                populateProductDropdowns();
+            } catch (e) { /* showMessage called in makeApiCall */ }
+        }
+
+        function populateProductDropdowns() {
+            const selects = [
+                document.getElementById('movement_product_id'),
+                document.getElementById('historical_product_id'),
+                document.getElementById('predict_product_id')
+            ];
+            selects.forEach(select => {
+                if (!select) return;
+                const currentVal = select.value;
+                select.innerHTML = '<option value="">-- Select Product --</option>';
+                if(Array.isArray(productsCache)) {
+                    productsCache.forEach(p => {
+                        let option = document.createElement('option');
+                        option.value = p.id;
+                        option.textContent = `${p.product_code} - ${p.product_name}`;
+                        select.appendChild(option);
+                    });
+                }
+                select.value = currentVal;
+            });
+        }
+
+        // --- Inventory Movement Functions ---
+        async function recordMovement() {
+            const payload = {
+                product_id: parseInt(document.getElementById('movement_product_id').value),
+                movement_type: document.getElementById('movement_type').value,
+                quantity: parseInt(document.getElementById('movement_quantity').value),
+                order_id: document.getElementById('movement_order_id').value || null,
+                notes: document.getElementById('movement_notes').value || null,
+            };
+            if (isNaN(payload.product_id) || !payload.movement_type || isNaN(payload.quantity) || payload.quantity <=0) {
+                showMessage('addMovementMessage', 'Product, Type, and valid Quantity are required.', true);
+                return;
+            }
+            try {
+                await makeApiCall('/inventory/movements', 'POST', payload);
+                showMessage('addMovementMessage', 'Movement recorded successfully!');
+                document.getElementById('addMovementForm').reset();
+                fetchMovements();
+                fetchCurrentStock();
+            } catch (e) { /* showMessage called in makeApiCall */ }
+        }
+
+        async function fetchMovements() {
+            try {
+                const movements = await makeApiCall('/inventory/movements');
+                 if (!movements) return;
+                const tableBody = document.getElementById('movementsTable').getElementsByTagName('tbody')[0];
+                tableBody.innerHTML = '';
+                movements.slice(0,10).forEach(m => {
+                    let row = tableBody.insertRow();
+                    row.insertCell().textContent = m.id;
+                    row.insertCell().textContent = m.product_name;
+                    row.insertCell().textContent = m.movement_type;
+                    row.insertCell().textContent = m.quantity;
+                    row.insertCell().textContent = new Date(m.movement_date).toLocaleString();
+                    row.insertCell().textContent = m.order_id || '-';
+                });
+            } catch (e) { /* showMessage called in makeApiCall */ }
+        }
+
+        // --- Current Stock Functions ---
+        async function fetchCurrentStock() {
+            try {
+                const stock = await makeApiCall('/stock/current');
+                if (!stock) return;
+                const tableBody = document.getElementById('currentStockTable').getElementsByTagName('tbody')[0];
+                tableBody.innerHTML = '';
+                stock.forEach(s => {
+                    let row = tableBody.insertRow();
+                    row.insertCell().textContent = s.product_id;
+                    row.insertCell().textContent = s.product_code;
+                    row.insertCell().textContent = s.product_name;
+                    row.insertCell().textContent = s.quantity;
+                    row.insertCell().textContent = s.total_inventory_cost.toFixed(2);
+                    row.insertCell().textContent = s.last_updated ? new Date(s.last_updated).toLocaleString() : 'N/A';
+                });
+            } catch (e) { /* showMessage called in makeApiCall */ }
+        }
+
+        // --- Prediction Functions ---
+        async function addHistoricalData() {
+            const payload = {
+                product_id: parseInt(document.getElementById('historical_product_id').value),
+                date: document.getElementById('historical_date').value,
+                units_sold: parseInt(document.getElementById('historical_units_sold').value),
+                avg_sale_price: parseFloat(document.getElementById('historical_avg_price').value) || null,
+                promotion_active: document.getElementById('historical_promo').checked,
+                special_event: document.getElementById('historical_event').value || null
+            };
+             if (isNaN(payload.product_id) || !payload.date || isNaN(payload.units_sold) || payload.units_sold < 0) {
+                showMessage('addHistoricalDataMessage', 'Product, Date, and valid Units Sold are required.', true);
+                return;
+            }
+            try {
+                await makeApiCall('/stock/predictor-data', 'POST', payload);
+                showMessage('addHistoricalDataMessage', 'Historical data added successfully!');
+                document.getElementById('addHistoricalDataForm').reset();
+            } catch (e) { /* showMessage called in makeApiCall */ }
+        }
+
+        async function getPrediction() {
+            const productId = document.getElementById('predict_product_id').value;
+            const periods = document.getElementById('predict_periods').value;
+            const windowSize = document.getElementById('predict_window').value;
+            const resultArea = document.getElementById('predictionResultArea');
+            const messageArea = document.getElementById('predictionResultMessage'); // Use specific message area
+            resultArea.innerHTML = '';
+            messageArea.style.display = 'none';
+
+            if (!productId) {
+                showMessage('predictionResultMessage', 'Please select a product for prediction.', true);
+                return;
+            }
+            try {
+                const data = await makeApiCall(`/stock/predict/${productId}?periods=${periods}&window=${windowSize}`);
+                if(!data) return; // Error handled by makeApiCall
+                showMessage('predictionResultMessage', `Prediction for ${data.product_name} (Code: ${data.product_code})`);
+
+                let html = '<strong>Predictions:</strong><ul>';
+                if (data.predictions && data.predictions.length > 0) {
+                    data.predictions.forEach(p => {
+                        html += `<li>Period ${p.period}: ${p.predicted_units_sold} units</li>`;
+                    });
+                } else {
+                    html += '<li>No predictions available.</li>';
+                }
+                html += '</ul>';
+                resultArea.innerHTML = html;
+
+            } catch (e) {
+                resultArea.innerHTML = '';
+                // showMessage('predictionResultMessage', e.message || 'Failed to get prediction.', true); // Already handled by global
+            }
+        }
+
+
+        // --- General & Logout ---
+        function logout() {
+            localStorage.removeItem('authToken');
+            window.location.href = '/login';
+        }
+
+        // Initial calls on dashboard load
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.location.pathname === '/dashboard') {
+                if (getToken()) { // getToken will redirect if null and not on login/register
+                    fetchProducts(); // This will also populate dropdowns
+                    fetchMovements();
+                    fetchCurrentStock();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

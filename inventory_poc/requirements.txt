@@ -1,0 +1,15 @@
+Flask==2.3.3
+Flask-SQLAlchemy==3.0.5
+Werkzeug==2.3.7
+python-dotenv==1.0.0
+Flask-Cors==4.0.0
+PyJWT==2.8.0
+pytest==7.4.2
+Faker==19.6.2
+# pandas and scikit-learn were mentioned as optional, not explicitly added to core PoC.
+# If they were used in prediction_service.py (the PoC used a manual SMA), they'd be here.
+# For the current PoC, pandas was imported but not strictly necessary for the simple SMA.
+# If it becomes a hard dependency, it should be added.
+# Let's assume the simple SMA in prediction_service.py did not *require* pandas.
+# If it did, this would be:
+# pandas==2.0.3 # Example version
